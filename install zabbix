@@ -1,0 +1,147 @@
+安装部署abbix分布式监控系统
+一、zabbix主控端安装部署
+1、安装zabbix
+[root@localhost ~]# yum -y install gcc mysql-server mysql-devel libcurl-devel net-snmp-devel php php-gd php-xml php-mysql php-mbstring php-bcmath httpd
+[root@localhost ~]# rpm -ivh php-bcmath-5.3.3-22.el6.x86_64.rpm --nodeps
+[root@localhost ~]# rpm -ivh php-mbstring-5.3.3-22.el6.x86_64.rpm --nodeps
+[root@localhost ~]# useradd -u 50 zabbix
+[root@localhost ~]# tar -zxvf zabbix-2.2.6.tar.gz -C /usr/src/
+[root@localhost ~]# cd /usr/src/zabbix-2.2.6/
+[root@localhost ~]# ./configure --prefix=/usr/local/zabbix --enable-server --enable-agent --with-net-snmp --with-libcurl --enable-proxy --with-mysql=/usr/bin/mysql_config && make && make install
+[root@localhost ~]# ln -s /usr/local/zabbix/sbin/* /usr/local/sbin/
+[root@localhost ~]# ln -s /usr/local/zabbix/bin/* /usr/local/bin/
+[root@localhost ~]# vim /etc/services
+添加：
+zabbix-agent 10050/tcp Zabbix Agent
+zabbix-agent 10050/udp Zabbix Agent
+zabbix-trapper 10051/tcp Zabbix Trapper
+zabbix-trapper 10051/udp Zabbix Trapper
+[root@localhost ~]# vim /usr/local/zabbix/etc/zabbix_server.conf
+修改：
+DBName=zabbix //数据库名称
+DBUser=zabbix //数据库用户名
+DBPassword= 123.com //数据库密码
+ListenIP=127.0.0.1 //数据库ip地址
+AlertScriptsPath=/usr/local/zabbix/share/zabbix/alertscripts
+[root@localhost ~]# vim /usr/local/zabbix/etc/zabbix_agentd.conf
+修改：
+Include=/usr/local/zabbix/etc/zabbix_agentd.conf.d/
+UnsafeUserParameters=1
+[root@localhost ~]# cp /usr/src/zabbix-2.2.6/misc/init.d/fedora/core/zabbix_agentd /etc/init.d/
+[root@localhost ~]# cp /usr/src/zabbix-2.2.6/misc/init.d/fedora/core/zabbix_server /etc/init.d/
+[root@localhost ~]# vim /etc/init.d/zabbix_server
+修改：
+BASEDIR=/usr/local/zabbix/
+vim /etc/init.d/zabbix_agentd
+修改：
+BASEDIR=/usr/local/zabbix/
+[root@localhost ~]# chmod +x /etc/init.d/zabbix_agentd
+[root@localhost ~]# chmod +x /etc/init.d/zabbix_server
+[root@localhost ~]# /etc/init.d/zabbix_agentd start
+[root@localhost ~]# /etc/init.d/zabbix_server start
+[root@localhost ~]# chkconfig --add zabbix_agentd
+[root@localhost ~]# chkconfig zabbix_server on
+[root@localhost ~]# chkconfig --add zabbix_server
+[root@localhost ~]# chkconfig zabbix_agentd on
+2、配置mysql
+[root@localhost ~]# service mysqld restart
+[root@localhost ~]# chkconfig --add mysqld
+[root@localhost ~]# chkconfig mysqld on
+[root@localhost ~]# mysqladmin -u root password '123.com'
+[root@localhost ~]# mysql -u root -p123.com
+创建库：
+Mysql>create database zabbix default character set utf8;
+Mysql>grant all privileges on zabbix.* to zabbix@localhost identified by '123.com';
+[root@localhost ~]# mysql -u zabbix -p zabbix < /usr/src/zabbix-2.2.6/database/mysql/schema.sql
+[root@localhost ~]# mysql -u zabbix -p zabbix < /usr/src/zabbix-2.2.6/database/mysql/images.sql
+[root@localhost ~]# mysql -u zabbix -p zabbix < /usr/src/zabbix-2.2.6/database/mysql/data.sql
+[root@localhost ~]# mysql -u root -p123.com
+3、配置php和httpd
+[root@localhost ~]# vim /etc/php.ini
+修改：
+max_execution_time = 300
+max_input_time = 300
+post_max_size = 16M
+date.timezone = Asia/Shanghai
+[root@localhost ~]# vim /etc/httpd/conf/httpd.conf
+修改：
+DirectoryIndex index.php index.html index.html.var
+[root@localhost ~]# cp -r /usr/src/zabbix-2.2.6/frontends/php/ /var/www/html/zabbix
+[root@localhost ~]# chown -R apache:apache /var/www/html/zabbix/
+[root@localhost ~]# service httpd restart
+[root@localhost ~]# chkconfig --add httpd
+[root@localhost ~]# chkconfig httpd on
+验证：
+firefox http://localhost/zabbix &
+二、zabbix被控端安装部署
+[root@www ~]# hostname www.benet.com
+[root@www ~]# useradd -u 50 zabbix
+[root@www ~]# tar -zxvf zabbix-2.2.6.tar.gz -C /usr/src/
+[root@www ~]# cd /usr/src/zabbix-2.2.6/
+[root@www ~]#./configure --prefix=/usr/local/zabbix --enable-agent //在客户端上只配置agent功能。
+[root@www ~]# make && make install
+[root@www ~]# ln -s /usr/local/zabbix/sbin/* /usr/local/sbin/
+[root@www ~]# ln -s /usr/local/zabbix/bin/* /usr/local/bin/
+[root@www ~]# vim /usr/local/zabbix/etc/zabbix_agentd.conf
+修改：
+Include=/usr/local/zabbix/etc/zabbix_agentd.conf.d/ //注:去掉lnclude的注释并修改路径
+UnsafeUserParameters=1 //“0”改为“1”，启用自定义key
+Server=192.168.1.1 //主控服务器IP(zabbix服务器的IP)
+ServerActive=192.168.1.1 //主控服务器IP(zabbix服务器的IP)
+Hostname=www.benet.com //受控端主机名(被控端的主机名)
+[root@www ~]# vim /etc/services
+添加：
+zabbix-agent 10050/tcp Zabbix Agent
+zabbix-agent 10050/udp Zabbix Agent
+zabbix-trapper 10051/tcp Zabbix Trapper
+zabbix-trapper 10051/udp Zabbix Trapper
+[root@www ~]# cp /usr/src/zabbix-2.2.6/misc/init.d/fedora/core/zabbix_agentd /etc/rc.d/init.d/zabbix_agentd
+[root@www ~]# chmod +x /etc/rc.d/init.d/zabbix_agentd
+[root@www ~]# vim /etc/rc.d/init.d/zabbix_agentd
+修改：
+BASEDIR=/usr/local/zabbix //修改路径为zabbix的安装路径
+[root@www ~]# /etc/rc.d/init.d/zabbix_agentd restart
+[root@www ~]# chkconfig --add zabbix_agentd
+[root@www ~]# chkconfig zabbix_agentd on
+三、验证：
+在浏览器中打开：http://localhost/zabbix/setup.php
+检查系统环境设置，必须全部都为ok，才能继续
+Next
+配置MySQL数据库信息
+Database：MySQL
+Database host：127.0.0.1
+Database port：use default port
+Database name：zabbix
+User：zabbix
+Password：zabbix
+Test connection #测试数据库连接是否正常，显示ok表示通过
+Next
+Next 默认
+Next
+Finish 安装完成
+八、更改zabbix默认语言为简体中文、替换监控图像上系统默认的中文字体
+1、修改系统配置文件，让web页面支持简体中文显示
+[root@localhost ~]# vim /var/www/html/zabbix/include/locales.inc.php #编辑修改
+'zh_CN' => array('name' => _('Chinese (zh_CN)'), 'display' => false),
+修改为
+'zh_CN' => array('name' => _('Chinese (zh_CN)'), 'display' => true),
+:wq! #保存退出
+2、替换监控图像上系统默认的字体 #默认字体不支持中文，如果不替换，图像上会显示乱码
+在Windows系统中的C:\Windows\Fonts目录中复制出一个中文字体文件，例如msyh.ttf
+把字体文件msyh.ttf上传到zabbix站点根目录下fonts文件夹中
+例如：/var/www/html/zabbix/fonts
+备份默认的字体文件：DejaVusSans.ttf-bak
+修改msyh.ttf名称为DejaVusSans.ttf
+3、在浏览器中打开：
+http://127.0.0.1/zabbix
+注意：关闭selinux，否则会报错。
+账号：admin
+密码：zabbix
+Sign in 登录
+如下图所示
+点击Profile
+如下图所示
+Language：Chinese（zh_CN） #简体中文
+点Save 保存
+退出站点，重新登录之后，如下图所示
+默认界面已经是中文显示
