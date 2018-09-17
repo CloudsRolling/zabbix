@@ -1,0 +1,139 @@
+1. 先安装数据库mysql
+docker run --name zabbix-mysql-server --hostname zabbix-mysql-server \
+-e MYSQL_ROOT_PASSWORD="123456" \
+-e MYSQL_USER="zabbix" \
+-e MYSQL_PASSWORD="123456" \
+-e MYSQL_DATABASE="zabbix" \
+-p 3306:3306  \
+-d \
+mysql
+2. 创建zabbix-server
+docker run  --name zabbix-server-mysql --hostname zabbix-server-mysql \
+--link zabbix-mysql-server:mysql \
+-e DB_SERVER_HOST="mysql" \
+-e MYSQL_USER="zabbix" \
+-e MYSQL_DATABASE="zabbix" \
+-e MYSQL_PASSWORD="123456" \
+-v /etc/localtime:/etc/localtime:ro \
+-v /data/docker/zabbix/alertscripts:/usr/lib/zabbix/alertscripts \
+-v /data/docker/zabbix/externalscripts:/usr/lib/zabbix/externalscripts \
+-p 10051:10051 \
+-d \
+zabbix/zabbix-server-mysql
+3. 最后web-nginx
+最后安装zabbix-web-nginx
+docker run --name zabbix-web-nginx-mysql --hostname zabbix-web-nginx-mysql \
+--link zabbix-mysql-server:mysql \
+--link zabbix-server-mysql:zabbix-server \
+-e DB_SERVER_HOST="mysql" \
+-e MYSQL_USER="zabbix" \
+-e MYSQL_PASSWORD="123456" \
+-e MYSQL_DATABASE="zabbix" \
+-e ZBX_SERVER_HOST="zabbix-server" \
+-e PHP_TZ="Asia/Shanghai" \
+-p 8000:80 \
+-p 8443:443 \
+-d \
+zabbix/zabbix-web-nginx-mysql
+docker-zabbbix-agent的安装以及链接zabbix-server
+docker run --name zabbix-agent --link zabbix-server-mysql:zabbix-server -d zabbix/zabbix-agent:latest
+登录访问测试
+浏览器访问ip:8000查看
+默认登录
+username:Admin
+password:zabbix
+
+docker-compose.yml
+version: '3'
+services:
+   zabbix-mysql-server:
+      container_name: zabbix-mysql-server
+      image: mysql
+      network_mode: "bridge"
+      restart: always
+      ports:
+        - "3306:3306"
+      environment:
+        - MYSQL_ROOT_PASSWORD=123456
+        - MYSQL_USER=zabbix
+        - MYSQL_PASSWORD=123456
+        - MYSQL_DATABASE=zabbix
+      volumes:
+        - /opt/dbdata:/etc/dbdata
+   zabbix-server-mysql:
+      container_name: zabbix-server-mysql
+      image: zabbix/zabbix-server-mysql:latest    
+      network_mode: "bridge"
+      restart: always
+      ports:
+        - "10051:10051"
+      links:
+        - zabbix-mysql-server:mysql
+      environment:     
+        - DB_SERVER_HOST=mysql
+        - MYSQL_USER=zabbix
+        - MYSQL_DATABASE=zabbix
+        - MYSQL_PASSWORD=123456
+      volumes:      
+        - /etc/localtime:/etc/localtime:ro
+        - /opt/zabbix/alertscripts:/usr/lib/zabbix/alertscripts
+        - /opt/zabbix/externalscripts:/usr/lib/zabbix/externalscripts
+   zabbix-web-nginx-mysql:
+      container_name: zabbix-web-nginx-mysql
+      image: zabbix/zabbix-web-nginx-mysql
+      network_mode: "bridge"
+      restart: always
+      depends_on:
+        - zabbix-mysql-server
+        - zabbix-server-mysql
+      ports:
+        - "8000:80"
+        - "8443:443"
+      links:
+        - zabbix-mysql-server:mysql
+        - zabbix-server-mysql:zabbix-server
+      environment:     
+        - DB_SERVER_HOST=mysql
+        - MYSQL_USER=zabbix
+        - MYSQL_DATABASE=zabbix
+        - MYSQL_PASSWORD=123456
+        - ZBX_SERVER_HOST=zabbix-server
+        - PHP_TZ=Asia/Shanghai
+      volumes:      
+        - /etc/localtime:/etc/localtime:ro 
+        - /opt/nginx:/opt/nginx
+   zabbix-agent-a:
+      container_name: zabbix-agent-a
+      image: zabbix/zabbix-agent:latest
+      network_mode: "bridge"
+      restart: always
+      links:
+        - zabbix-server-mysql:zabbix-server
+        - zabbix-web-nginx-mysql:zabbix-web
+      depends_on:
+        - zabbix-server-mysql
+        - zabbix-web-nginx-mysql
+      volumes:
+        - /opt/zabbix-agent:/data/zabbix-agent
+      environment:
+        - ZBX_HOSTNAME=zabbix-agent-a
+        - ZBX_SERVER_HOST=zabbix-server
+   zabbix-agent-b:
+      container_name: zabbix-agent-b
+      image: zabbix/zabbix-agent:latest
+      network_mode: "bridge"
+      restart: always
+      links:
+        - zabbix-server-mysql:zabbix-server
+        - zabbix-web-nginx-mysql:zabbix-web
+      depends_on:
+        - zabbix-server-mysql
+        - zabbix-web-nginx-mysql
+      volumes:
+        - /opt/zabbix-agent-b:/data/zabbix-agent-b
+      environment:
+        - ZBX_HOSTNAME=zabbix-agent-b
+        - ZBX_SERVER_HOST=zabbix-server
+
+
+
