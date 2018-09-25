@@ -77,7 +77,7 @@ UserParameter=mysql.replication,mysql -u root -p123456 -e "show slave status\G" 
 [root@mysql-slave ~]# /etc/init.d/zabbix_agent restart
 
 最后在zabbix-server端抓取mysql-slave端的数据
-[root@zabbix-server ~]# /usr/local/zabbix/bin/zabbix_get -s 192.168.10.138 -k mysql.replication     #抓取mysql-slave端的键值，如果返回数值2.则表明IO和SQL线程状态都为yes状态，则表明主从正常
+[root@zabbix-server ~]# /usr/local/zabbix/bin/zabbix_get -s 192.168.17.138 -k mysql.replication     #抓取mysql-slave端的键值，如果返回数值2.则表明IO和SQL线程状态都为yes状态，则表明主从正常
 
 二：二：【Zabbix-server-web端配置】
 2.1：创建一个监控项作为mysql主从二：【Zabbix-server-web端配置】
